@@ -16,7 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from app01 import views
+from django.conf.urls import include
+from captcha import *
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('login/',views.login),
+    path('create/',views.create),
+    path('month_budget/',views.month_budget),
+    path('captcha/', include('captcha.urls')),
+    path('refresh_captcha/', views.refresh_captcha),
+    path('test/',views.IndexView.as_view()),
+
 ]
