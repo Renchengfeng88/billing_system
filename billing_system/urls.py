@@ -21,11 +21,11 @@ from django.conf.urls import include
 from captcha import *
 
 urlpatterns = [
-    path('login/',views.login),
-    path('create/',views.create),
-    path('month_budget/',views.month_budget),
+    path('login/',views.login.as_view()),
+    path('register/',views.register.as_view()),
+    path('month_budget/',views.month_budgetView.as_view()),
     path('captcha/', include('captcha.urls')),
-    path('refresh_captcha/', views.refresh_captcha),
-    path('test/',views.IndexView.as_view()),
+    # path('refresh_captcha/', views.refresh_captcha),
+    # path('test/',views.IndexView.as_view()),
 
 ]

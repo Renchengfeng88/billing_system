@@ -27,10 +27,21 @@ class month_budget(models.Model):
     year = models.IntegerField()
     month = models.IntegerField()
     kind = models.CharField(max_length=10)
-    budget_amount = models.DecimalField(max_length=10,decimal_places=2)
+    budget_amount = models.DecimalField(max_digits=10,decimal_places=2)
 
     class Meta:
         indexes = [
             models.Index(fields=['UserID', 'year','month']),
         ]
 
+class Bill(models.Model):
+    id=models.AutoField(primary_key=True)
+    UserID = models.ForeignKey('User', on_delete=models.CASCADE)
+    name=models.CharField(max_length=32)
+    income=models.IntegerField(max_length=32)
+    note=models.CharField(max_length=32)
+    number=models.FloatField()
+    year=models.IntegerField(max_length=4)
+    month=models.IntegerField(max_length=2)
+    day=models.IntegerField(max_length=2)
+    type=models.CharField(max_length=32)
