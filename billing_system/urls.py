@@ -24,7 +24,9 @@ urlpatterns = [
     path('login/',views.login.as_view()),
     path('register/',views.register.as_view()),
     path('month_budget/',views.month_budgetView.as_view()),
-    path('captcha/', include('captcha.urls')),
+    # path('captcha/', include('captcha.urls')),
+    path('getbudget/', views.getbudget.as_view()),
+    path('Clock_in/', views.Clock_inView.as_view()),
     # path('refresh_captcha/', views.refresh_captcha),
     # path('test/',views.IndexView.as_view()),
 

@@ -45,3 +45,10 @@ class Bill(models.Model):
     month=models.IntegerField(max_length=2)
     day=models.IntegerField(max_length=2)
     type=models.CharField(max_length=32)
+
+class Clock_in(models.Model):
+    id = models.AutoField(primary_key=True)
+    UserID = models.ForeignKey('User', on_delete=models.CASCADE)
+    year = models.IntegerField(max_length=10)
+    month = models.IntegerField(max_length=10)
+    day = models.IntegerField(max_length=10)

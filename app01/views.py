@@ -10,13 +10,17 @@ from django_redis import get_redis_connection
 from rest_framework.generics import ListCreateAPIView,ListAPIView
 from rest_framework.response import Response
 from app01.serializers import *
+from rest_framework.parsers import JSONParser
+from app01 import models
 
 class login(APIView):
+    parser_classes = (JSONParser,)
     def post(self,request,*args,**kwargs):
         context = {}
         try:
-            username = request.POST['username']
-            password = request.POST['password']
+            data = JSONParser().parse(request)
+            username = data['username']
+            password = data['password']
             user = User.objects.get(username=username,password=password)
             context={
                 'code':200,
@@ -32,11 +36,13 @@ class login(APIView):
 
 
 class register(APIView):
+    parser_classes = (JSONParser,)
     def post(self,request,*args,**kwargs):
         context = {}
         try:
-            username = request.POST['username']
-            password = request.POST['password']
+            data = JSONParser().parse(request)
+            username = data['username']
+            password = data['password']
             try:
                 user = User.objects.get(username=username)
                 context = {'code': 500,
@@ -59,14 +65,16 @@ class register(APIView):
 
 
 class month_budgetView(APIView):
+    parser_classes = (JSONParser,)
     def post(self, request, *args, **kwargs):
         context ={}
         success = True
         budget = ''
         try:
-            kind = request.POST['kind']
-            budget_amount = request.POST['number']
-            token = request.POST['token']
+            data = JSONParser().parse(request)
+            kind = data['kind']
+            budget_amount = data['number']
+            token = data['token']
             if check_token(token):
                 a = get_username(token)
                 try:
@@ -90,48 +98,71 @@ class month_budgetView(APIView):
         return Response(context)
 
 class getbudget(APIView):
+    parser_classes = (JSONParser,)
     def post(self,request,*args,**kwargs):
+        data = JSONParser().parse(request)
         now=datetime.now()
         wish={}
         spending={}
-        mb=month_budget.objects.filter(year=now.year,month=now.month)
-        for m in mb:
-            wish[m.kind]=m.budget_amount
-
-
-        spending={
-            "clothes": 0,
-            "eating": 0,
-            "living": 0,
-            "going": 0,
-            "other": 0
-        }
+        token = data['token']
+        if check_token(token):
+            a = get_username(token)
+            mb = month_budget.objects.filter(year=now.year, month=now.month)
+            userid = User.objects.get(username=a)
+            b = Bill.objects.filter(UserID=userid,year=now.year,month=now.month)
+            for m in mb:
+                wish[m.kind]=m.budget_amount
+            for n in b:
+                spending[n.type] = spending[n.type]+n.number
         data={
             "wish": wish,
             "spending": spending
         }
-        context={
-            "code":200,
-            "data":data
-
-        }
 
         return Response(data)
 
-class BillView(APIView):
-    def post(self, request):
-        data = json.loads(request.body)
-        models.Bill.objects.create(name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'),type=request.data.get('type'))
-        return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
-
-class Bill1View(APIView):
-    def delete(self, request, id):
-        book_obj = models.Bill.objects.filter(id=id).exists()
-        if book_obj:
-            models.Bill.objects.filter(id=id).delete()
-            return JsonResponse({'code': 200, 'msg': '删除一条成功'})
+class Clock_inView(APIView):
+    parser_classes = (JSONParser,)
+    def post(self, request, *args, **kwargs):
+        data = JSONParser().parse(request)
+        token = data['token']
+        now = datetime.now()
+        if check_token(token):
+            a = get_username(token)
+            userid = User.objects.get(username=a)
+            try:
+                b = Clock_in.objects.get(UserID=userid,year=now.year,month=now.month,day=now.day)
+                success = False
+                msg = '今日已打卡！'
+            except Clock_in.DoesNotExist:
+                time = Clock_in(UserID=userid,year=now.year,month=now.month,day=now.day)
+                success = True
+                msg = '打卡成功！'
+                time.save()
         else:
-            return JsonResponse({'code': 101, 'msg': '当前不存在此账单'})
+            success = False
+            msg = '验证失败！'
+        data = {
+            'success': success,
+            'msg': msg,
+        }
+        return Response(data)
+
+
+# class BillView(APIView):
+#     def post(self, request):
+#         data = json.loads(request.body)
+#         models.Bill.objects.create(name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'),type=request.data.get('type'))
+#         return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
+#
+# class Bill1View(APIView):
+#     def delete(self, request, id):
+#         book_obj = models.Bill.objects.filter(id=id).exists()
+#         if book_obj:
+#             models.Bill.objects.filter(id=id).delete()
+#             return JsonResponse({'code': 200, 'msg': '删除一条成功'})
+#         else:
+#             return JsonResponse({'code': 101, 'msg': '当前不存在此账单'})
 
 # from django.shortcuts import render
 # from django.views.generic import View
