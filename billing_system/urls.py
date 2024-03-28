@@ -19,6 +19,8 @@ from django.urls import path
 from app01 import views
 from django.conf.urls import include
 from captcha import *
+from django.urls import re_path
+
 
 urlpatterns = [
     path('login/',views.login.as_view()),
@@ -27,6 +29,9 @@ urlpatterns = [
     # path('captcha/', include('captcha.urls')),
     path('getbudget/', views.getbudget.as_view()),
     path('Clock_in/', views.Clock_inView.as_view()),
+    path('get_p_information/', views.get_p_informationView.as_view()),
+    re_path(r'^get(?P<period>week|month|year)bill/$', views.BillingListView.as_view()),
+    re_path(r'^get(?P<period>yearly|monthly)bill/$', views.BillDetailView.as_view()),
     # path('refresh_captcha/', views.refresh_captcha),
     # path('test/',views.IndexView.as_view()),
 

@@ -15,7 +15,9 @@ from app01 import models
 
 class login(APIView):
     parser_classes = (JSONParser,)
+    print('99999999')
     def post(self,request,*args,**kwargs):
+        print('888888888')
         context = {}
         try:
             data = JSONParser().parse(request)
@@ -32,6 +34,7 @@ class login(APIView):
                 'code':500,
                 'success':False,
             }
+        print(context)
         return Response(context)
 
 
@@ -109,14 +112,14 @@ class getbudget(APIView):
             a = get_username(token)
             mb = month_budget.objects.filter(year=now.year, month=now.month)
             userid = User.objects.get(username=a)
-            b = Bill.objects.filter(UserID=userid,year=now.year,month=now.month)
+            b = Bill.objects.filter(UserID=userid,year=now.year,month=now.month,income=0)
             for m in mb:
                 wish[m.kind]=m.budget_amount
             for n in b:
                 spending[n.type] = spending[n.type]+n.number
         data={
             "wish": wish,
-            "spending": spending
+            "spending": spending,
         }
 
         return Response(data)
@@ -148,7 +151,127 @@ class Clock_inView(APIView):
         }
         return Response(data)
 
+class get_p_informationView(APIView):
+    parser_classes = (JSONParser,)
+    def post(self, request, *args, **kwargs):
+        data = JSONParser().parse(request)
+        token = data['token']
+        now = datetime.now()
+        if check_token(token):
+            a = get_username(token)
+            userid = User.objects.get(username=a)
+            days = Clock_in.objects.filter(UserID=userid, year=now.year, month=now.month).count()
+            billdays = Bill.objects.filter(UserID=userid, year=now.year, month=now.month).distinct().count()
+            bill_number = Bill.objects.filter(UserID=userid, year=now.year, month=now.month).count()
+            try:
+                b = Clock_in.objects.get(UserID=userid, year=now.year, month=now.month, day=now.day)
+                ifrec = True
+            except Clock_in.DoesNotExist:
+                ifrec = False
+            data = {
+                'record': days,
+                'day':billdays,
+                'bill':bill_number,
+                'ifrec':ifrec,
+            }
+        return Response(data)
 
+
+
+
+
+
+#袁健
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.generics import GenericAPIView
+from rest_framework.response import Response
+from .serializers import *
+from .models import Bill
+
+
+class BillingListView(GenericAPIView):
+
+    def post(self, request, *args, **kwargs):
+        period = kwargs.get('period')
+        income = request.data.get('income')
+        if period == 'week':
+            bills = self.get_week_billing(income)
+            serializer = WeekbillSerializer(instance={'bills': bills})
+        elif period == 'month':
+            bills = self.get_month_billing(income)
+            today = timezone.localtime(timezone.now()).date()
+            year = today.year
+            month = today.month
+            serializer = MonthbillSerializer(instance={'bills': bills, 'year': year, 'month': month})
+        elif period == 'year':
+            bills = self.get_year_billing(income)
+            serializer = YearbillSerializer(instance={'bills': bills})
+        else:
+            return Response({"error": "Invalid period"}, status=status.HTTP_400_BAD_REQUEST)
+        serializer_data = serializer.data
+        return Response(serializer_data)
+
+    def get_week_billing(self, income):
+        # 获取周账单
+        today = timezone.localtime(timezone.now()).date()
+        start_of_week = today - timezone.timedelta(days=today.weekday())
+        end_of_week = start_of_week + timezone.timedelta(days=6)
+        start_year, start_month, start_day = start_of_week.year, start_of_week.month, start_of_week.day
+        end_year, end_month, end_day = end_of_week.year, end_of_week.month, end_of_week.day
+        bills = Bill.objects.filter(
+            (Q(year=start_year, month=start_month, day__gte=start_day) |
+             (Q(year=end_year, month=end_month, day__lte=end_day) & Q(year__lt=end_year) |
+              Q(year=end_year, month__lt=end_month))) &
+            (Q(year=start_year, month=start_month, day__lte=end_day) |
+             (Q(year=end_year, month=end_month, day__gte=start_day) & Q(year__gt=start_year) |
+              Q(year=start_year, month__gt=start_month))) &
+            Q(income=income)
+        )
+        return bills
+
+    def get_month_billing(self, income):
+        # 获取月账单
+        today = timezone.localtime(timezone.now()).date()
+        current_month = today.month
+        return Bill.objects.filter(month=current_month, income=income)
+
+    def get_year_billing(self, income):
+        # 获取年账单
+        today = timezone.localtime(timezone.now()).date()
+        current_year = today.year
+        return Bill.objects.filter(year=current_year, income=income)
+
+
+class BillDetailView(GenericAPIView):
+
+    def post(self, request, *args, **kwargs):
+        period = kwargs.get('period')
+        if period == 'yearly':
+            year = request.data.get('year')
+            bills = Bill.objects.filter(year=year)
+            serializer = YearlyDetailSerializer(instance={'bills': bills})
+
+        elif period == 'monthly':
+            year = request.data.get('year')
+            month = request.data.get('month')
+            bills = Bill.objects.filter(year=year, month=month)
+            serializer = MonthlyDetailSerializer(instance={'bills': bills})
+
+        serializer_data = serializer.data
+        return Response(serializer_data)
+
+
+
+
+
+
+
+
+
+
+#the devil
 # class BillView(APIView):
 #     def post(self, request):
 #         data = json.loads(request.body)

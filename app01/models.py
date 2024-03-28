@@ -21,6 +21,9 @@ class User(models.Model):
     #             name="valid_phone_number"),
     #     ]
 
+
+
+
 class month_budget(models.Model):
     budget_id = models.AutoField(primary_key=True)
     UserID = models.ForeignKey('User', on_delete=models.CASCADE)
