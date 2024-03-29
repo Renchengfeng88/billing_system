@@ -196,71 +196,77 @@ class BillingListView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         period = kwargs.get('period')
         income = request.data.get('income')
-        if period == 'week':
-            bills = self.get_week_billing(income)
-            serializer = WeekbillSerializer(instance={'bills': bills})
-        elif period == 'month':
-            bills = self.get_month_billing(income)
-            today = timezone.localtime(timezone.now()).date()
-            year = today.year
-            month = today.month
-            serializer = MonthbillSerializer(instance={'bills': bills, 'year': year, 'month': month})
-        elif period == 'year':
-            bills = self.get_year_billing(income)
-            serializer = YearbillSerializer(instance={'bills': bills})
-        else:
-            return Response({"error": "Invalid period"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer_data = serializer.data
-        return Response(serializer_data)
-
-    def get_week_billing(self, income):
-        # 获取周账单
-        today = timezone.localtime(timezone.now()).date()
-        start_of_week = today - timezone.timedelta(days=today.weekday())
-        end_of_week = start_of_week + timezone.timedelta(days=6)
-        start_year, start_month, start_day = start_of_week.year, start_of_week.month, start_of_week.day
-        end_year, end_month, end_day = end_of_week.year, end_of_week.month, end_of_week.day
-        bills = Bill.objects.filter(
-            (Q(year=start_year, month=start_month, day__gte=start_day) |
-             (Q(year=end_year, month=end_month, day__lte=end_day) & Q(year__lt=end_year) |
-              Q(year=end_year, month__lt=end_month))) &
-            (Q(year=start_year, month=start_month, day__lte=end_day) |
-             (Q(year=end_year, month=end_month, day__gte=start_day) & Q(year__gt=start_year) |
-              Q(year=start_year, month__gt=start_month))) &
-            Q(income=income)
-        )
+        token = request.data.get('token')
+        if check_token(token):
+            a = get_username(token)
+            user_id = User.objects.get(username=a)
+            if period == 'week':
+                bills = self.get_week_billing(user_id, income)
+                serializer = WeekbillSerializer(instance={'bills': bills})
+            elif period == 'month':
+                bills = self.get_month_billing(user_id, income)
+                today = timezone.localtime(timezone.now()).date()
+                year = today.year
+                month = today.month
+                serializer = MonthbillSerializer(instance={'bills': bills, 'year': year, 'month': month})
+            elif period == 'year':
+                bills = self.get_year_billing(user_id, income)
+                serializer = YearbillSerializer(instance={'bills': bills})
+            else:
+                return Response({"error": "Invalid period"}, status=status.HTTP_400_BAD_REQUEST)
+            serializer_data = serializer.data
+            return Response(serializer_data)
+    def get_week_billing(self, user_id, income):  
+        # 获取周账单  
+        today = timezone.localtime(timezone.now()).date()  
+        start_of_week = today - timezone.timedelta(days=today.weekday())  
+        end_of_week = start_of_week + timezone.timedelta(days=6)  
+        bills = Bill.objects.filter(  
+            UserID=user_id,
+            (Q(year=start_of_week.year, month=start_of_week.month, day__gte=start_of_week.day) |  
+             (Q(year=end_of_week.year, month=end_of_week.month, day__lte=end_of_week.day) & Q(year__lt=end_of_week.year) |  
+              Q(year=end_of_week.year, month__lt=end_of_week.month))) &  
+            (Q(year=start_of_week.year, month=start_of_week.month, day__lte=end_of_week.day) |  
+             (Q(year=end_of_week.year, month=end_of_week.month, day__gte=start_of_week.day) & Q(year__gt=start_of_week.year) |  
+              Q(year=start_of_week.year, month__gt=start_of_week.month))) &  
+            Q(income=income)  
+        )  
+        return bills  
+  
+    def get_month_billing(self, user_id, income):  
+        # 获取月账单  
+        today = timezone.localtime(timezone.now()).date()  
+        bills = Bill.objects.filter(UserID=user_id, month=today.month, income=income)
+        return bills  
+  
+    def get_year_billing(self, user_id, income):  
+        # 获取年账单  
+        today = timezone.localtime(timezone.now()).date()  
+        bills = Bill.objects.filter(UserID=user_id, year=today.year, income=income)
         return bills
-
-    def get_month_billing(self, income):
-        # 获取月账单
-        today = timezone.localtime(timezone.now()).date()
-        current_month = today.month
-        return Bill.objects.filter(month=current_month, income=income)
-
-    def get_year_billing(self, income):
-        # 获取年账单
-        today = timezone.localtime(timezone.now()).date()
-        current_year = today.year
-        return Bill.objects.filter(year=current_year, income=income)
 
 
 class BillDetailView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
+        token = request.data.get('token')
         period = kwargs.get('period')
-        if period == 'yearly':
-            year = request.data.get('year')
-            bills = Bill.objects.filter(year=year)
-            serializer = YearlyDetailSerializer(instance={'bills': bills})
+        if check_token(token):
+            a = get_username(token)
+            user_id = User.objects.get(username=a)
+            if period == 'yearly':
+                year = request.data.get('year')
+                bills = Bill.objects.filter(UserID=user_id, year=year)
+                serializer = YearlyDetailSerializer(instance={'bills': bills})
 
-        elif period == 'monthly':
-            year = request.data.get('year')
-            month = request.data.get('month')
-            bills = Bill.objects.filter(year=year, month=month)
-            serializer = MonthlyDetailSerializer(instance={'bills': bills})
+            elif period == 'monthly':
+                year = request.data.get('year')
+                month = request.data.get('month')
+                bills = Bill.objects.filter(UserID=user_id, year=year, month=month)
+                serializer = MonthlyDetailSerializer(instance={'bills': bills})
 
-        serializer_data = serializer.data
-        return Response(serializer_data)
+            serializer_data = serializer.data
+            return Response(serializer_data)
 
 
 
