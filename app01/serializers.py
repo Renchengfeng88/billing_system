@@ -220,7 +220,12 @@ class searchTimeSerializer(serializers.Serializer):
                 'bill': bills,
             })
         print(bill_time)
-        return bill_time
+        data = {}
+        data = {
+            "data": bill_time,
+        }
+        return data
+
 
 
 class searchNumberSerializer(serializers.Serializer):
@@ -237,4 +242,8 @@ class searchNumberSerializer(serializers.Serializer):
                 'time': bill_date.strftime('%Y-%m-%d'),
                 'bill': bill_data,
             })
-        return bill_number
+        data = {}
+        data = {
+            "data": bill_number,
+        }
+        return data
