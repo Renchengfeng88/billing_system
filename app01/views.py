@@ -115,7 +115,10 @@ class getbudget(APIView):
             for m in mb:
                 wish[m.kind]=m.budget_amount
             for n in b:
-                spending[n.type] = spending[n.type]+n.number
+                try:
+                    spending[n.type] += n.number
+                except:
+                    spending[n.type] = n.number
         data={
             "wish": wish,
             "spending": spending,
