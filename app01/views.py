@@ -182,16 +182,23 @@ class get_p_informationView(APIView):
 
 
 #袁健
-from django.db.models import Q
 from django.utils import timezone
-from rest_framework import status
-from rest_framework.generics import GenericAPIView
+from rest_framework import status, generics
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from .serializers import *
-from .models import Bill
+from .models import Bill, User
+from django.core import signing
+import hashlib
+from django.core.cache import cache
+import time
+import calendar
+from collections import defaultdict
 
 
-class BillingListView(GenericAPIView):
+class BillingListView(APIView):
+    parser_classes = (JSONParser,)
 
     def post(self, request, *args, **kwargs):
         period = kwargs.get('period')
@@ -199,74 +206,243 @@ class BillingListView(GenericAPIView):
         token = request.data.get('token')
         if check_token(token):
             a = get_username(token)
-            user_id = User.objects.get(username=a)
+            user_id = User.objects.get(username=a).UserID
             if period == 'week':
-                bills = self.get_week_billing(user_id, income)
-                serializer = WeekbillSerializer(instance={'bills': bills})
+                response_data = self.week_billing(user_id, income)
+                return Response(response_data)
             elif period == 'month':
-                bills = self.get_month_billing(user_id, income)
-                today = timezone.localtime(timezone.now()).date()
-                year = today.year
-                month = today.month
-                serializer = MonthbillSerializer(instance={'bills': bills, 'year': year, 'month': month})
+                response_data = self.month_billing(user_id, income)
+                return Response(response_data)
             elif period == 'year':
-                bills = self.get_year_billing(user_id, income)
-                serializer = YearbillSerializer(instance={'bills': bills})
+                response_data = self.year_billing(user_id, income)
+                return Response(response_data)
             else:
                 return Response({"error": "Invalid period"}, status=status.HTTP_400_BAD_REQUEST)
-            serializer_data = serializer.data
-            return Response(serializer_data)
-    def get_week_billing(self, user_id, income):  
-        # 获取周账单  
-        today = timezone.localtime(timezone.now()).date()  
-        start_of_week = today - timezone.timedelta(days=today.weekday())  
-        end_of_week = start_of_week + timezone.timedelta(days=6)  
-        bills = Bill.objects.filter(  
-            UserID=user_id,
-            (Q(year=start_of_week.year, month=start_of_week.month, day__gte=start_of_week.day) |  
-             (Q(year=end_of_week.year, month=end_of_week.month, day__lte=end_of_week.day) & Q(year__lt=end_of_week.year) |  
-              Q(year=end_of_week.year, month__lt=end_of_week.month))) &  
-            (Q(year=start_of_week.year, month=start_of_week.month, day__lte=end_of_week.day) |  
-             (Q(year=end_of_week.year, month=end_of_week.month, day__gte=start_of_week.day) & Q(year__gt=start_of_week.year) |  
-              Q(year=start_of_week.year, month__gt=start_of_week.month))) &  
-            Q(income=income)  
-        )  
-        return bills  
-  
-    def get_month_billing(self, user_id, income):  
-        # 获取月账单  
-        today = timezone.localtime(timezone.now()).date()  
-        bills = Bill.objects.filter(UserID=user_id, month=today.month, income=income)
-        return bills  
-  
-    def get_year_billing(self, user_id, income):  
-        # 获取年账单  
-        today = timezone.localtime(timezone.now()).date()  
-        bills = Bill.objects.filter(UserID=user_id, year=today.year, income=income)
-        return bills
+
+    def week_billing(self, user_id, income):
+        # 获取周账单
+        today = timezone.localtime(timezone.now()).date()
+        start_of_week = today - timezone.timedelta(days=today.weekday())
+        end_of_week = start_of_week + timezone.timedelta(days=6)
+
+        bills = Bill.objects.filter(UserID_id=user_id, income=income)
+        serializer = BillSerializer(bills, many=True)
+        serialized_data = serializer.data
+
+        this_week_bills_data = [
+            bill_data for bill_data in serialized_data
+            if start_of_week <= bill_data['date'] <= end_of_week
+        ]
+
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+        # 初始化每天的总金额为0
+        daily_totals = {day: 0 for day in weekdays}
+
+        # 计算每天的总金额
+        for bill in this_week_bills_data:
+            weekday_index = bill['date'].weekday()
+            daily_totals[weekdays[weekday_index]] += bill['number']
+
+        # 计算本周总金额
+        total_amount = sum(daily_totals.values())
+
+        name_amounts = defaultdict(float)
+        for bill in this_week_bills_data:
+            name_amounts[bill['name']] += bill['number']
+        name_ratios = []
+        for name, amount in name_amounts.items():
+            ratio = (amount / total_amount) * 100 if total_amount > 0 else 0
+            name_ratios.append({
+                'name': name,
+                'note': '',
+                'rate': f'{ratio:.2f}%'
+            })
+
+        response_data = {
+            'data': {
+                'date': weekdays,
+                'number': [daily_totals[day] for day in weekdays]
+            },
+            'order': name_ratios
+        }
+
+        return response_data
+
+    def month_billing(self, user_id, income):
+        # 获取月账单
+        month = datetime.datetime.now().month
+        year = datetime.datetime.now().year
+        _, last_day_of_month_num = calendar.monthrange(year, month)
+        start_of_month = datetime.datetime(year, month, 1)
+        end_of_month = datetime.datetime(year, month, last_day_of_month_num)
+
+        bills = Bill.objects.filter(UserID_id=user_id, income=income)
+        serializer = BillSerializer(bills, many=True)
+        serialized_data = serializer.data
+
+        this_month_bills_data = [
+            bill_data for bill_data in serialized_data
+            if start_of_month <= bill_data['date'] <= end_of_month
+        ]
+
+        # 初始化每天的总金额为0
+        daily_totals = {day: 0 for day in range(1, last_day_of_month_num + 1)}
+
+        for bill in this_month_bills_data:
+            daily_totals[bill['day']] += bill['number']
+
+        # 转换为列表（顺序）
+        daily_totals_values = []
+        for num in range(1, last_day_of_month_num + 1):
+            daily_totals_values.append(daily_totals[num])
+
+        # 计算本月总金额
+        total_amount = sum(daily_totals.values())
+
+        name_amounts = defaultdict(float)
+        for bill in this_month_bills_data:
+            name_amounts[bill['name']] += bill['number']
+        name_ratios = []
+        for name, amount in name_amounts.items():
+            ratio = (amount / total_amount) * 100 if total_amount > 0 else 0
+            name_ratios.append({
+                'name': name,
+                'note': '',
+                'rate': f'{ratio:.2f}%'
+            })
+
+        response_data = {
+            'data': {
+                'day': last_day_of_month_num,
+                'number': daily_totals_values
+            },
+            'order': name_ratios
+        }
+        return response_data
+
+    def year_billing(self, user_id, income):
+        # 获取年账单
+        year = datetime.datetime.now().year
+        start_of_year = datetime.datetime(year, 1, 1)
+        end_of_year = datetime.datetime(year, 12, 31)
+
+        bills = Bill.objects.filter(UserID_id=user_id, income=income)
+        serializer = BillSerializer(bills, many=True)
+        serialized_data = serializer.data
+
+        this_year_bills_data = [
+            bill_data for bill_data in serialized_data
+            if  start_of_year<= bill_data['date'] <= end_of_year
+        ]
+
+        # 初始化每月的总金额为0
+        monthly_totals = {day: 0 for day in range(1, 13)}
+
+        for bill in this_year_bills_data:
+            monthly_totals[bill['month']] += bill['number']
+
+        # 转换为列表（顺序）
+        monthly_totals_values = []
+        for num in range(1, 13):
+            monthly_totals_values.append(monthly_totals[num])
+
+        # 计算本年总金额
+        total_amount = sum(monthly_totals.values())
+
+        name_amounts = defaultdict(float)
+        for bill in this_year_bills_data:
+            name_amounts[bill['name']] += bill['number']
+        name_ratios = []
+        for name, amount in name_amounts.items():
+            ratio = (amount / total_amount) * 100 if total_amount > 0 else 0
+            name_ratios.append({
+                'name': name,
+                'note': '',
+                'rate': f'{ratio:.2f}%'
+            })
+
+        response_data = {
+            'data': {
+                'number': monthly_totals_values
+            },
+            'order': name_ratios
+        }
+
+        return response_data
 
 
-class BillDetailView(GenericAPIView):
+class BillDetailView(APIView):
+    parser_classes = (JSONParser,)
 
     def post(self, request, *args, **kwargs):
-        token = request.data.get('token')
         period = kwargs.get('period')
+        token = request.data.get('token')
         if check_token(token):
             a = get_username(token)
             user_id = User.objects.get(username=a)
             if period == 'yearly':
                 year = request.data.get('year')
                 bills = Bill.objects.filter(UserID=user_id, year=year)
-                serializer = YearlyDetailSerializer(instance={'bills': bills})
+                serializer = BillSerializer(bills, many=True)
+                serialized_data = serializer.data
+
+                monthly_data = []
+                months = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+
+                monthly_in_totals = {day: 0 for day in range(1, 13)}
+                monthly_out_totals = {day: 0 for day in range(1, 13)}
+                for bill in serialized_data:
+                    if bill['income'] == 1:
+                        monthly_in_totals[bill['month']] += bill['number']
+                    else:
+                        monthly_out_totals[bill['month']] += bill['number']
+
+                # 遍历月份列表，为每个月份创建一个字典，并添加到monthly_data列表中
+                for month in months:
+                    monthly_data.append({
+                        "month": month,
+                        "in": monthly_in_totals[int(month)],
+                        "out": monthly_out_totals[int(month)]
+                    })
+
+                return monthly_data
 
             elif period == 'monthly':
                 year = request.data.get('year')
                 month = request.data.get('month')
+                _, last_day_of_month_num = calendar.monthrange(year, month)
                 bills = Bill.objects.filter(UserID=user_id, year=year, month=month)
-                serializer = MonthlyDetailSerializer(instance={'bills': bills})
+                serializer = BillSerializer(bills, many=True)
+                serialized_data = serializer.data
 
-            serializer_data = serializer.data
-            return Response(serializer_data)
+                # 初始化每天的总金额为0
+                daily_in_totals = {day: 0 for day in range(1, last_day_of_month_num + 1)}
+                daily_out_totals = {day: 0 for day in range(1, last_day_of_month_num + 1)}
+
+                for bill in serialized_data:
+                    if bill['income'] == 1:
+                        daily_in_totals[bill['day']] += bill['number']
+                    else:
+                        daily_out_totals[bill['day']] += bill['number']
+
+                response_data = []
+                for day in range(1, last_day_of_month_num + 1):
+                    data = {'time': datetime.datetime(year, month, day), 'bill': [], 'in': daily_in_totals[day],
+                            'out': daily_out_totals[day]}
+                    for bill in serialized_data:
+                        if bill['day'] == day:
+                            dic = {
+                                "name": bill['name'],
+                                "note": bill['note'],
+                                "number": bill['number'],
+                                "id": bill['id']
+                            }
+                            data['bill'].append(dic)
+                    response_data.append(data)
+                return Response(response_data)
+            else:
+                return Response({"error": "Invalid period"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
