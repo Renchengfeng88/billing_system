@@ -34,4 +34,4 @@ class BillSerializer(serializers.ModelSerializer):
         fields = ['id', 'UserID', 'name', 'income', 'note', 'number', 'year', 'month', 'day', 'type', 'date']
 
     def get_date(self, obj):
-        return datetime.datetime(obj.year, obj.month, obj.day)
+        return datetime.date(obj.year, obj.month, obj.day)
