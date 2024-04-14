@@ -238,9 +238,10 @@ class searchTimeSerializer(serializers.Serializer):
                 'bill': bills,
             })
         data = {}
-        data = {
-            "data": bill_time,
-        }
+        if bill_time:
+            data = {'data': bill_time}
+        else:
+            data = {'data':"No Data"}
         return data
 
 
@@ -260,7 +261,8 @@ class searchNumberSerializer(serializers.Serializer):
                 'bill': bill_data,
             })
         data = {}
-        data = {
-            "data": bill_number,
-        }
+        if bill_number:
+            data = {'data': bill_number}
+        else:
+            data = {'data': "No Data"}
         return data
