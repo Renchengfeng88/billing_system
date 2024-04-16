@@ -47,7 +47,6 @@ class Bill(models.Model):
     year=models.IntegerField(max_length=4)
     month=models.IntegerField(max_length=2)
     day=models.IntegerField(max_length=2)
-    type=models.CharField(max_length=32)
 
 class Clock_in(models.Model):
     id = models.AutoField(primary_key=True)
