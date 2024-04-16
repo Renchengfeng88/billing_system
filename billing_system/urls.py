@@ -33,6 +33,9 @@ urlpatterns = [
     path('search/', views.searchView.as_view()),
     re_path(r'^get(?P<period>week|month|year)bill/$', views.BillingListView.as_view()),
     re_path(r'^get(?P<period>yearly|monthly)bill/$', views.BillDetailView.as_view()),
+    path('bills/', views.BillView.as_view()),
+    path('bills/<int:id>', views.Bill1View.as_view()),
+    path('change/<int:id>', views.ChangeBillView.as_view())
     # path('refresh_captcha/', views.refresh_captcha),
     # path('test/',views.IndexView.as_view()),
 

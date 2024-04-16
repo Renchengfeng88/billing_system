@@ -506,20 +506,43 @@ class BillDetailView(APIView):
 
 
 #the devil
-# class BillView(APIView):
-#     def post(self, request):
-#         data = json.loads(request.body)
-#         models.Bill.objects.create(name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'),type=request.data.get('type'))
-#         return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
-#
-# class Bill1View(APIView):
-#     def delete(self, request, id):
-#         book_obj = models.Bill.objects.filter(id=id).exists()
-#         if book_obj:
-#             models.Bill.objects.filter(id=id).delete()
-#             return JsonResponse({'code': 200, 'msg': '删除一条成功'})
-#         else:
-#             return JsonResponse({'code': 101, 'msg': '当前不存在此账单'})
+from rest_framework.views import APIView
+import json
+from django.http import JsonResponse
+
+
+class BillView(APIView):
+    def post(self, request):
+        data = json.loads(request.body)
+        if check_token(request.data.get('token')):
+            models.Bill.objects.create(UserID_id=request.data.get('UserID'),name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'),type=request.data.get('type'))
+            return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
+        else:
+            return JsonResponse({'code':101,'msg':'创建失败'})
+
+class Bill1View(APIView):
+    def delete(self, request, id):
+        if check_token(request.data.get('token')):
+            bill_obj = models.Bill.objects.filter(id=id).exists()
+            if bill_obj:
+                models.Bill.objects.filter(id=id).delete()
+                return JsonResponse({'code': 200, 'msg': '删除一条成功'})
+            else:
+                return JsonResponse({'code': 101, 'msg': '当前不存在此账单'})
+        else:
+            return JsonResponse({'code': 500, 'msg': '认证不成功'})
+
+class ChangeBillView(APIView):
+    def change(self, request, id):
+        if check_token(request.data.get('token')):
+            bill_obj = models.Bill.objects.filter(id=id).exists()
+            if bill_obj:
+                models.Bill.objects.filter(id=id).update(note=request.data.get('note'),number=request.data.get('number'))
+                return JsonResponse({'code': 200, 'msg': '修改成功'})
+            else:
+                return JsonResponse({'code': 101, 'msg': '账单不存在'})
+        else:
+            return JsonResponse({'code':500, 'msg':'认证不成功'})
 
 # from django.shortcuts import render
 # from django.views.generic import View
