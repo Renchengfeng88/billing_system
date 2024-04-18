@@ -516,11 +516,11 @@ class BillView(APIView):
         data = json.loads(request.body)
         if check_token(request.data.get('token')):
             a = get_username(token)
-            user_id = User.objects.get(username=a)[0]
+            user_id = User.objects.get(username=a)[0].UserID
             models.Bill.objects.create(UserID_id=user_id,name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'))
             return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
         else:
-            return JsonResponse({'code':101,'msg':'创建失败'})
+            return JsonResponse({'code':500,'msg':'认证不成功'})
 
 class Bill1View(APIView):
     def delete(self, request, id):
