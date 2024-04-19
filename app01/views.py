@@ -516,7 +516,7 @@ class BillView(APIView):
         token=request.data.get('token')
         if check_token(request.data.get('token')):
             a = get_username(token)
-            user_id = User.objects.get(username=a)[0].UserID
+            user_id = User.objects.filter(username=a)[0].UserID
             models.Bill.objects.create(UserID_id=user_id,name=request.data.get('name'),income=request.data.get('income'),note=request.data.get('note'),number=request.data.get('number'),year=request.data.get('year'),mouth=request.data.get('mouth'),day=request.data.get('day'))
             return JsonResponse({'code': 200, 'msg': '创建成功', 'results': request.data})
         else:
