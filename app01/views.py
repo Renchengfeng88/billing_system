@@ -513,7 +513,6 @@ from django.http import JsonResponse
 
 class BillView(APIView):
     def post(self, request):
-        data = json.loads(request.body)
         if check_token(request.data.get('token')):
             a = get_username(token)
             user_id = User.objects.get(username=a)[0].UserID
