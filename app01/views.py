@@ -535,7 +535,7 @@ class Bill1View(APIView):
             return JsonResponse({'code': 500, 'msg': '认证不成功'})
 
 class ChangeBillView(APIView):
-    def change(self, request, id):
+    def put(self, request, id):
         if check_token(request.data.get('token')):
             bill_obj = models.Bill.objects.filter(id=id).exists()
             if bill_obj:
